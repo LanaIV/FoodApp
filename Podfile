@@ -7,5 +7,9 @@ target 'FoodApp' do
   pod 'NVActivityIndicatorView'
   pod 'Unbox'
 
+  pod 'RxSwift'
+  pod 'RxCocoa'
+  pod 'RxDataSources'
+
   pod 'Reveal-SDK', :configuration => ['Debug']
 end
