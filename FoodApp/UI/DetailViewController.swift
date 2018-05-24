@@ -8,6 +8,10 @@
 
 import UIKit
 
+import RxSwift
+import RxCocoa
+import RxDataSources
+
 fileprivate enum Constants {
     static let defaultCellHeight = 44.0
     static let mainInfoCellIdentifier = "MainInfoTableViewCell"
@@ -19,45 +23,61 @@ class DetailViewController: UIViewController {
     @IBOutlet weak var photoImageView: UIImageView!
     @IBOutlet weak var tableView: UITableView!
 
-    var recipe: Recipe
+    var disposeBag = DisposeBag()
 
-    var recipeDetailsViewModels: Array<Any> = []
+    var recipe: Variable<Recipe>
+
+    var recipeDetailsItems: Variable<Array<CustomItem>> = Variable([])
 
     init(recipe: Recipe) {
-        self.recipe = recipe
+        self.recipe = Variable(recipe)
         super.init(nibName: nil, bundle: nil)
-        self.recipeDetailsViewModels = computeRecipeDetailsViewModels(recipe: recipe)
     }
 
     required init?(coder aDecoder: NSCoder) {
-        self.recipe = Recipe()
+        self.recipe = Variable(Recipe())
         super.init(coder: aDecoder)
-        self.recipeDetailsViewModels = computeRecipeDetailsViewModels(recipe: recipe)
     }
 
     override func viewDidLoad() {
         super.viewDidLoad()
+
+        recipe.asObservable()
+            .map { [weak self] (recipe) in
+                return self?.computeRecipeDetailsViewModels(recipe: recipe) ?? []
+            }
+            .bind(to: recipeDetailsItems)
+            .disposed(by: disposeBag)
+
+        recipe.asObservable()
+            .subscribe { [weak self] _ in
+                self?.tableView.reloadData()
+            }
+            .disposed(by: disposeBag)
+
         setupView()
         retrieveData()
     }
 
-    private func computeRecipeDetailsViewModels(recipe: Recipe) -> Array<Any> {
-        var viewModels = [MainInfoTableViewCellViewModel(rank: recipe.rank, title: recipe.title, publisher: recipe.publisher)] as Array<Any>
+    private func computeRecipeDetailsViewModels(recipe: Recipe) -> Array<CustomItem> {
+        let mainInfoViewModel = MainInfoTableViewCellViewModel(rank: recipe.rank, title: recipe.title, publisher: recipe.publisher)
+        var customItems = [CustomItem.MainInfoItem(viewModel: mainInfoViewModel)]
         if let ingredients = recipe.ingredients {
-             viewModels.append(IngredientsTableViewCellViewModel(ingredients: ingredients))
+            let ingredientsViewModel = IngredientsTableViewCellViewModel(ingredients: ingredients)
+            customItems.append(CustomItem.IngredientsItem(viewModel: ingredientsViewModel))
         }
-        return viewModels as [Any]
+        return customItems
     }
 
     private func retrieveData() {
-        NetworkManager.retrieveRecipeDetail(id: recipe.id) { (recipe, error) in
-            guard error == nil else {
-                return
-            }
-            self.recipe = recipe
-            self.recipeDetailsViewModels = self.computeRecipeDetailsViewModels(recipe: recipe)
-            self.tableView.reloadData()
-        }
+        NetworkManager.retrieveRecipeDetail(id: recipe.value.id)
+            .subscribe(onNext: { [weak self] (recipe, error) in
+                guard let recipe = recipe else {
+                    return
+                }
+                self?.recipe.value = recipe
+            })
+            .disposed(by: disposeBag)
     }
 
     private func setupView() {
@@ -66,48 +86,66 @@ class DetailViewController: UIViewController {
     }
 
     private func setupPhotoImageView() {
-        NetworkManager.retrieveRecipePhoto(imageUrl: recipe.imageUrl) { [weak self] data,  error in
-            guard error == nil else {
-                return
-            }
-            self?.photoImageView.image = UIImage(data: data)
+        NetworkManager.retrieveRecipePhoto(imageUrl: recipe.value.imageUrl)
+            .subscribe(onNext: { [weak self] (data) in
+                self?.photoImageView.image = UIImage(data: data)
+            })
+            .disposed(by: disposeBag)
         }
-    }
 
     private func setupTableView() {
-        tableView.dataSource = self
-        tableView.delegate = self
         tableView.register(UINib(nibName: Constants.mainInfoCellIdentifier, bundle: Bundle.main), forCellReuseIdentifier: Constants.mainInfoCellIdentifier)
         tableView.register(UINib(nibName: Constants.ingredientsCellIdentifier, bundle: Bundle.main), forCellReuseIdentifier: Constants.ingredientsCellIdentifier)
 
         tableView.estimatedRowHeight = CGFloat(Constants.defaultCellHeight)
         tableView.rowHeight = UITableViewAutomaticDimension
+
+        let dataSource = RxTableViewSectionedReloadDataSource<CustomSectionModel>(configureCell: { (dataSource, tableView, indexPath, item) -> UITableViewCell in
+            switch item {
+            case .MainInfoItem(let viewModel):
+                let cell: MainInfoTableViewCell = tableView.dequeueReusableCell(withIdentifier: Constants.mainInfoCellIdentifier, for: indexPath) as! MainInfoTableViewCell
+                cell.configure(viewModel: viewModel)
+                return cell
+            case .IngredientsItem(let viewModel):
+                let cell: IngredientsTableViewCell = tableView.dequeueReusableCell(withIdentifier: Constants.ingredientsCellIdentifier, for: indexPath) as! IngredientsTableViewCell
+                cell.configure(viewModel: viewModel)
+                return cell
+            }
+        })
+
+        recipeDetailsItems.asObservable()
+            .map({ (items) -> Array<CustomSectionModel> in
+                return [CustomSectionModel.DefaultSection(title: "", items: items)]
+            })
+            .bind(to: tableView.rx.items(dataSource: dataSource))
+            .disposed(by: disposeBag)
     }
 }
 
-extension DetailViewController: UITableViewDataSource, UITableViewDelegate {
+enum CustomSectionModel {
+    case DefaultSection(title: String, items: Array<CustomItem>)
+}
 
-    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return recipeDetailsViewModels.count
-    }
+extension CustomSectionModel: SectionModelType {
+    typealias Item = CustomItem
 
-    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        switch recipeDetailsViewModels[indexPath.row] {
-        case let viewModel as MainInfoTableViewCellViewModel:
-            if let cell = tableView.dequeueReusableCell(withIdentifier: Constants.mainInfoCellIdentifier) as? MainInfoTableViewCell {
-                cell.configure(viewModel: viewModel)
-                return cell
-            }
-        case let viewModel as IngredientsTableViewCellViewModel:
-            if let cell = tableView.dequeueReusableCell(withIdentifier: Constants.ingredientsCellIdentifier) as? IngredientsTableViewCell {
-                cell.configure(viewModel: viewModel)
-                return cell
-            }
-        default:
-            break
+    var items: [CustomItem] {
+        switch self {
+        case .DefaultSection(_, let items):
+            return items
         }
-
-        return UITableViewCell()
     }
+
+    init(original: CustomSectionModel, items: [CustomItem]) {
+        switch original {
+        case .DefaultSection(let title, _):
+            self = .DefaultSection(title: title, items: items)
+        }
+    }
+
 }
 
+enum CustomItem {
+    case MainInfoItem(viewModel: MainInfoTableViewCellViewModel)
+    case IngredientsItem(viewModel: IngredientsTableViewCellViewModel)
+}

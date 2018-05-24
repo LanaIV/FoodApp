@@ -5,6 +5,11 @@ PODS:
     - NVActivityIndicatorView/Presenter (= 4.2.0)
   - NVActivityIndicatorView/Presenter (4.2.0)
   - Reveal-SDK (14)
+  - RxAlamofire (4.2.0):
+    - RxAlamofire/Core (= 4.2.0)
+  - RxAlamofire/Core (4.2.0):
+    - Alamofire (~> 4.5)
+    - RxSwift (~> 4)
   - RxCocoa (4.1.2):
     - RxSwift (~> 4.0)
   - RxDataSources (3.0.2):
@@ -18,6 +23,7 @@ DEPENDENCIES:
   - Alamofire
   - NVActivityIndicatorView
   - Reveal-SDK
+  - RxAlamofire
   - RxCocoa
   - RxDataSources
   - RxSwift
@@ -29,6 +35,7 @@ SPEC REPOS:
     - Differentiator
     - NVActivityIndicatorView
     - Reveal-SDK
+    - RxAlamofire
     - RxCocoa
     - RxDataSources
     - RxSwift
@@ -39,11 +46,12 @@ SPEC CHECKSUMS:
   Differentiator: a87be69eba49ec4ab460c7671143ee3a9eececfd
   NVActivityIndicatorView: 75c9634073e03b31d7e2748cd2417feab1206195
   Reveal-SDK: 55b5c5545233b680c2f8da734f202acc15d422b7
+  RxAlamofire: 87a9c588541210cc3e4a1f843ccc3ecf3eb98b31
   RxCocoa: d88ba0f1f6abf040011a9eb4b539324fc426843a
   RxDataSources: cb7c31e652a87ebb919da45f716bbb87b3765f6b
   RxSwift: e49536837d9901277638493ea537394d4b55f570
   Unbox: 9ed33b2a31f7a8a049f54b94d40c4a52a28c4d9d
 
-PODFILE CHECKSUM: 8b5866a152461eeaabcdce365f5981ace5d3cda9
+PODFILE CHECKSUM: c7c2962a3197eb0e001ef86ff35dae4f51d8bb75
 
 COCOAPODS: 1.5.0

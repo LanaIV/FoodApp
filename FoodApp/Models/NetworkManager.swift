@@ -8,6 +8,8 @@
 //
 
 import Alamofire
+import RxSwift
+import RxAlamofire
 import Unbox
 
 enum NetworkError: Error {
@@ -29,60 +31,72 @@ struct NetworkManager {
     static let detailRequestUrl = "https://food2fork.com/api/get"
     static let searchRequestUrl = "https://food2fork.com/api/search"
 
-    static func searchRecipes(query: String, handler: @escaping RecipesListHandlerType) {
-        Alamofire.request("\(searchRequestUrl)?key=\(apiKey)&q=\(query)").responseJSON { response in
-            guard response.error == nil else {
-                handler([], NetworkError.http)
-                return
-            }
-            guard let result = response.result.value as? UnboxableDictionary, let recipesResult = result["recipes"] as? UnboxableArray else {
-                handler([], NetworkError.api)
-                return
-            }
+    static func searchRecipes(query: String) -> Observable<RecipesArrayType> {
+        let url = "\(searchRequestUrl)?key=\(apiKey)&q=\(query)"
+        return Observable.create { (observer) -> Disposable in
+            let request = Alamofire.request(url).responseJSON { response in
+                guard response.error == nil else {
+                    observer.onError(NetworkError.http)
+                    return
+                }
+                guard let result = response.result.value as? UnboxableDictionary, let recipesResult = result["recipes"] as? UnboxableArray else {
+                    observer.onError(NetworkError.api)
+                    return
+                }
 
-            do {
-                let recipes: RecipesArrayType = try unbox(dictionaries: recipesResult)
-                handler(recipes, nil)
-            } catch {
-                handler([], NetworkError.jsonParse)
+                do {
+                    let recipes: RecipesArrayType = try unbox(dictionaries: recipesResult)
+                    observer.onNext(recipes)
+                } catch {
+                    observer.onError(NetworkError.jsonParse)
+                }
+            }
+            return Disposables.create {
+                request.cancel()
             }
         }
     }
 
-    static func retrieveRecipeDetail(id: String, handler: @escaping RecipeDetailHandlerType) {
-        Alamofire.request("\(detailRequestUrl)?key=\(apiKey)&rId=\(id)").responseJSON { response in
-            guard response.error == nil else {
-                handler(Recipe(), NetworkError.http)
-                return
-            }
-            guard let result = response.result.value as? UnboxableDictionary else {
-                handler(Recipe(), NetworkError.api)
-                return
-            }
+    static func retrieveRecipeDetail(id: String) -> Observable<(Recipe?, Error?)> {
+        let url = "\(detailRequestUrl)?key=\(apiKey)&rId=\(id)"
+        return requestJSON(.get, url)
+            .map({ (_, response) -> (Recipe?, Error?) in
+                if type(of: response) is Error {
+                    return (nil, NetworkError.http)
+                }
+                guard let result = response as? UnboxableDictionary else {
+                    return (nil, NetworkError.api)
+                }
 
-            do {
-                let recipe: Recipe = try unbox(dictionary: result, atKey: "recipe")
-                handler(recipe, nil)
-            } catch {
-                handler(Recipe(), NetworkError.jsonParse)
-            }
-        }
+                do {
+                    let recipe: Recipe = try unbox(dictionary: result, atKey: "recipe")
+                    return (recipe, nil)
+                } catch {
+                    return (nil, NetworkError.jsonParse)
+                }
+            })
+            .observeOn(MainScheduler.instance)
     }
 
 
-    static func retrieveRecipePhoto(imageUrl: String, handler: @escaping RecipePhotoHandlerType) {
+    static func retrieveRecipePhoto(imageUrl: String) -> Observable<Data> {
         let httpsImageUrl = imageUrl.replacingOccurrences(of: "http", with: "https")
-        Alamofire.request(httpsImageUrl).responseData { response in
-            guard response.error == nil else {
-                handler(Data(), NetworkError.http)
-                return
-            }
-            guard let data = response.result.value else {
-                handler(Data(), NetworkError.api)
-                return
-            }
+        return Observable.create { (observer) -> Disposable in
+            let request = Alamofire.request(httpsImageUrl).responseData { response in
+                guard response.error == nil else {
+                    observer.onError(NetworkError.http)
+                    return
+                }
+                guard let data = response.result.value else {
+                    observer.onError(NetworkError.api)
+                    return
+                }
 
-            handler(data, nil)
+                observer.onNext(data)
+            }
+            return Disposables.create {
+                request.cancel()
+            }
         }
     }
 }
