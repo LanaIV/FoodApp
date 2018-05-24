@@ -16,15 +16,12 @@ class SearchTableViewCell: UITableViewCell {
 
     @IBOutlet weak var photoImageView: UIImageView!
 
-    override func awakeFromNib() {
-        photoImageView.image = #imageLiteral(resourceName: "no-recipe")
-    }
-
     func configure(recipe: Recipe) {
         titleLabel.text = recipe.title
         publisherLabel.text = recipe.publisher
         rankLabel.text = "Rank: \(recipe.rank)"
-
+        photoImageView.image = #imageLiteral(resourceName: "no-recipe")
+        
         NetworkManager.retrieveRecipePhoto(imageUrl: recipe.imageUrl) { [weak self] data, error in
             self?.photoImageView.image = UIImage(data: data)
         }

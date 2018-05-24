@@ -30,7 +30,8 @@ struct NetworkManager {
     static let searchRequestUrl = "https://food2fork.com/api/search"
 
     static func searchRecipes(query: String, handler: @escaping RecipesListHandlerType) {
-        Alamofire.request("\(searchRequestUrl)?key=\(apiKey)&q=\(query)").responseJSON { response in
+        let url = "\(searchRequestUrl)?key=\(apiKey)&q=\(query)"
+        let request = Alamofire.request(url).responseJSON { response in
             guard response.error == nil else {
                 handler([], NetworkError.http)
                 return
@@ -50,7 +51,8 @@ struct NetworkManager {
     }
 
     static func retrieveRecipeDetail(id: String, handler: @escaping RecipeDetailHandlerType) {
-        Alamofire.request("\(detailRequestUrl)?key=\(apiKey)&rId=\(id)").responseJSON { response in
+        let url = "\(detailRequestUrl)?key=\(apiKey)&rId=\(id)"
+        Alamofire.request(url).responseJSON { response in
             guard response.error == nil else {
                 handler(Recipe(), NetworkError.http)
                 return
@@ -71,8 +73,8 @@ struct NetworkManager {
 
 
     static func retrieveRecipePhoto(imageUrl: String, handler: @escaping RecipePhotoHandlerType) {
-        let httpsImageUrl = imageUrl.replacingOccurrences(of: "http", with: "https")
-        Alamofire.request(httpsImageUrl).responseData { response in
+        let url = imageUrl.replacingOccurrences(of: "http", with: "https")
+        Alamofire.request(url).responseData { response in
             guard response.error == nil else {
                 handler(Data(), NetworkError.http)
                 return

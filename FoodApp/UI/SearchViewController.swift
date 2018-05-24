@@ -21,16 +21,17 @@ class SearchViewController: UIViewController {
     @IBOutlet weak var searchBar: UISearchBar!
     @IBOutlet weak var tableView: UITableView!
 
-
     var recipes: RecipesArrayType = []
+
+    var pendingWorkItem: DispatchWorkItem?
 
     override func viewDidLoad() {
         super.viewDidLoad()
         setupView()
-        retrieveData()
+        retrieveData(query: "")
     }
 
-    fileprivate func retrieveData(query: String = "") {
+    fileprivate func retrieveData(query: String) {
         NVActivityIndicatorPresenter.sharedInstance.startAnimating(ActivityData())
         NetworkManager.searchRecipes(query: query) { [weak self] recipes, error in
             NVActivityIndicatorPresenter.sharedInstance.stopAnimating()
@@ -80,7 +81,13 @@ extension SearchViewController: UISearchBarDelegate {
     }
 
     func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
-        retrieveData(query: searchText)
+        pendingWorkItem?.cancel()
+        let requestWorkItem = DispatchWorkItem { [weak self] in
+            self?.retrieveData(query: searchText)
+        }
+        pendingWorkItem = requestWorkItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3,
+                                      execute: requestWorkItem)
     }
 }
 
