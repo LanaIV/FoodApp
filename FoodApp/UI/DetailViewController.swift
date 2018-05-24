@@ -49,12 +49,6 @@ class DetailViewController: UIViewController {
             .bind(to: recipeDetailsItems)
             .disposed(by: disposeBag)
 
-        recipe.asObservable()
-            .subscribe { [weak self] _ in
-                self?.tableView.reloadData()
-            }
-            .disposed(by: disposeBag)
-
         setupView()
         retrieveData()
     }

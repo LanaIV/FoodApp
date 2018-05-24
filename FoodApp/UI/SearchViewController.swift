@@ -33,11 +33,13 @@ class SearchViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+
         query.asObservable()
             .subscribe(onNext: { [weak self] (query) in
                 self?.retrieveData(query: query)
             })
             .disposed(by: disposeBag)
+
         setupView()
     }
 
@@ -47,10 +49,6 @@ class SearchViewController: UIViewController {
             .subscribe(onNext: { [weak self] (recipes) in
                 NVActivityIndicatorPresenter.sharedInstance.stopAnimating()
                 self?.recipes.value = recipes
-                self?.tableView.reloadData()
-                if recipes.count > 0 {
-                    self?.tableView.scrollToRow(at: IndexPath(row: 0, section: 0), at: .top, animated: true)
-                }
             })
             .disposed(by: disposeBag)
     }
@@ -63,7 +61,7 @@ class SearchViewController: UIViewController {
 
     private func setupNoResultsLabel() {
         recipes.asObservable()
-            .map { $0.count != 0 }
+            .map { !$0.isEmpty }
             .bind(to: noResultsLabel.rx.isHidden)
             .disposed(by: disposeBag)
     }
@@ -73,6 +71,7 @@ class SearchViewController: UIViewController {
             .text.orEmpty
             .throttle(0.3, scheduler: MainScheduler.instance)
             .distinctUntilChanged()
+            .flatMapLatest { Observable.just($0) }
             .observeOn(MainScheduler.instance)
             .bind(to: query)
             .disposed(by: disposeBag)
@@ -102,6 +101,13 @@ class SearchViewController: UIViewController {
             .subscribe(onNext: { [weak self] (recipe) in
                 let detailViewController = DetailViewController(recipe: recipe)
                 self?.navigationController?.show(detailViewController, sender: self)
+            })
+            .disposed(by: disposeBag)
+
+        recipes.asObservable()
+            .filter { !$0.isEmpty }
+            .subscribe(onNext: { [weak self] _ in
+                self?.tableView.scrollToRow(at: IndexPath(row: 0, section: 0), at: .top, animated: true)
             })
             .disposed(by: disposeBag)
     }
